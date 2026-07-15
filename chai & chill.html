@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chai & Chill - POS System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom scrollbar for cart */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+        /* Glassmorphism effects */
+        .glass {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        /* Keyframe for wrong password shake */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-10px); }
+            40%, 80% { transform: translateX(10px); }
+        }
+    </style>
+</head>
+<body class="bg-amber-50 h-screen overflow-hidden text-slate-800 font-sans selection:bg-orange-200">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2"></div>
+
+    <!-- LOGIN SCREEN (Front Page) -->
+    <div id="login-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-orange-400 via-rose-500 to-purple-600">
+        <div class="glass p-10 rounded-3xl shadow-2xl w-11/12 max-w-md text-center transform transition-all">
+            <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                <i class="fa-solid fa-mug-hot text-5xl text-orange-500"></i>
+            </div>
+            <h1 class="text-4xl font-extrabold text-slate-800 mb-2">Chai & Chill</h1>
+            <p class="text-slate-600 mb-8 font-medium">Point of Sale System</p>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="relative mb-6">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                        <i class="fa-solid fa-lock text-slate-400"></i>
+                    </div>
+                    <input type="password" id="password" class="w-full pl-12 pr-4 py-4 bg-white/70 border border-white rounded-xl text-lg focus:outline-none focus:ring-4 focus:ring-orange-300 focus:bg-white transition-all shadow-sm" placeholder="Enter Password" required>
+                </div>
+                <button type="submit" class="w-full py-4 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white rounded-xl text-lg font-bold shadow-lg shadow-orange-500/30 transition-transform active:scale-95">
+                    Unlock Register
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN POS APP (Hidden initially) -->
+    <div id="pos-screen" class="h-full flex flex-col hidden opacity-0 transition-opacity duration-500">
+        
+        <!-- Header -->
+        <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center z-10 shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-br from-orange-400 to-rose-500 text-white p-2 rounded-lg shadow-md">
+                    <i class="fa-solid fa-mug-hot text-xl"></i>
+                </div>
+                <h1 class="text-xl sm:text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-orange-600 to-rose-600">Chai & Chill</h1>
+            </div>
+            <div class="flex gap-2 sm:gap-4">
+                <button onclick="exportToExcel()" class="flex items-center gap-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 sm:px-4 py-2 rounded-lg font-bold transition-colors">
+                    <i class="fa-solid fa-file-excel"></i> <span class="hidden sm:inline">Export</span>
+                </button>
+                <button onclick="logout()" class="flex items-center gap-2 bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 sm:px-4 py-2 rounded-lg font-bold transition-colors">
+                    <i class="fa-solid fa-right-from-bracket"></i> <span class="hidden sm:inline">Lock</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Layout -->
+        <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+            
+            <!-- Menu Section (Left on desktop, Top on mobile) -->
+            <section class="flex-1 h-[55%] lg:h-full p-4 sm:p-6 overflow-y-auto custom-scrollbar bg-amber-50/50">
+                <h2 class="text-xl font-bold mb-4 sm:mb-6 text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-utensils text-orange-500"></i> Menu Items
+                </h2>
+                
+                <!-- Menu Grid -->
+                <div id="menu-grid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 pb-4">
+                    <!-- Items populated by JS -->
+                </div>
+            </section>
+
+            <!-- Cart Section (Right on desktop, Bottom on mobile) -->
+            <section class="w-full h-[45%] lg:h-full lg:w-[400px] bg-white shadow-[auto_-10px_20px_rgba(0,0,0,0.05)] lg:shadow-[-10px_0_20px_rgba(0,0,0,0.05)] flex flex-col z-10 border-t lg:border-t-0 lg:border-l border-slate-200">
+                <div class="p-3 sm:p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
+                    <h2 class="text-lg sm:text-xl font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-receipt text-rose-500"></i> Current Order
+                    </h2>
+                    <button onclick="clearCart()" class="text-sm text-red-500 hover:text-red-700 font-semibold transition-colors">Clear All</button>
+                </div>
+                
+                <!-- Cart Items -->
+                <div id="cart-items" class="flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar bg-white">
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 opacity-70">
+                        <i class="fa-solid fa-basket-shopping text-5xl sm:text-6xl mb-3 sm:mb-4 text-slate-200"></i>
+                        <p class="font-medium">Cart is empty</p>
+                        <p class="text-xs sm:text-sm text-slate-300 mt-1">Select items to add</p>
+                    </div>
+                </div>
+
+                <!-- Cart Total & Actions -->
+                <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 shrink-0">
+                    <div class="flex justify-between items-center mb-3 sm:mb-4">
+                        <span class="text-base sm:text-lg font-semibold text-slate-600">Total Amount</span>
+                        <span id="cart-total" class="text-2xl sm:text-3xl font-black text-rose-600">₹0</span>
+                    </div>
+                    <button onclick="openCheckoutModal()" class="w-full py-3 sm:py-4 bg-gradient-to-r from-emerald-400 to-emerald-600 hover:from-emerald-500 hover:to-emerald-700 text-white rounded-xl text-lg sm:text-xl font-bold shadow-lg shadow-emerald-500/30 transition-transform active:scale-95 flex items-center justify-center gap-3">
+                        <i class="fa-solid fa-wallet"></i> Charge / Checkout
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- CHECKOUT MODAL (Hidden) -->
+    <div id="checkout-modal" class="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh]" id="checkout-modal-content">
+            
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-500 p-4 sm:p-6 text-white text-center relative shrink-0">
+                <button onclick="closeCheckoutModal()" class="absolute top-4 right-4 text-white/80 hover:text-white bg-white/20 hover:bg-white/30 rounded-full w-8 h-8 flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <h3 id="modal-title" class="text-xl sm:text-2xl font-bold mb-1">Complete Payment</h3>
+                <p id="modal-subtitle" class="text-sm sm:text-base text-emerald-100">Scan QR to pay securely</p>
+            </div>
+            
+            <!-- Payment View -->
+            <div id="payment-view" class="flex flex-col overflow-hidden">
+                <!-- Modal Body (Scrollable for small screens) -->
+                <div class="p-6 overflow-y-auto custom-scrollbar">
+                    <div class="text-center mb-6">
+                        <p class="text-slate-500 font-medium mb-1">Amount to Pay</p>
+                        <p id="modal-total" class="text-4xl sm:text-5xl font-black text-slate-800">₹0</p>
+                    </div>
+
+                    <!-- QR Code & UPI Section -->
+                    <div class="bg-slate-50 p-4 sm:p-6 rounded-2xl border border-slate-200 text-center flex flex-col items-center">
+                        <div class="bg-white p-3 rounded-xl shadow-sm mb-4 inline-block">
+                            <img id="qr-image" src="" alt="UPI QR Code" class="w-40 h-40 object-cover">
+                        </div>
+                        <p class="text-sm text-slate-500 font-medium mb-1">Or pay via UPI ID:</p>
+                        <div class="bg-white px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-bold select-all flex items-center gap-2 cursor-pointer hover:bg-slate-100 transition-colors w-full justify-center sm:w-auto" onclick="copyUpi()">
+                            <span id="upi-id" class="truncate max-w-[200px]">myshop@upi</span>
+                            <i class="fa-regular fa-copy text-slate-400 shrink-0"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer with Back Option -->
+                <div class="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
+                    <button onclick="closeCheckoutModal()" class="flex-1 py-3 bg-white text-slate-600 font-bold rounded-xl border border-slate-300 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-arrow-left"></i> Back
+                    </button>
+                    <button onclick="completeSale()" class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md shadow-emerald-500/20 transition-colors">
+                        Payment Received
+                    </button>
+                </div>
+            </div>
+
+            <!-- Success View (Hidden initially) -->
+            <div id="success-view" class="hidden flex-col items-center justify-center p-8 text-center overflow-y-auto">
+                <div class="w-20 h-20 sm:w-24 sm:h-24 bg-emerald-100 rounded-full flex items-center justify-center mb-6 shadow-inner shrink-0">
+                    <i class="fa-solid fa-check text-5xl sm:text-6xl text-emerald-500"></i>
+                </div>
+                <h3 class="text-2xl sm:text-3xl font-black text-slate-800 mb-2">Payment Successful!</h3>
+                <p class="text-slate-500 mb-8">The sale has been recorded securely.</p>
+                <!-- Back Option inside success view -->
+                <button onclick="closeCheckoutModal()" class="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-3">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Menu
+                </button>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        /* --- CONFIGURATION --- */
+        const UPI_ID = "prabumanikanda175@oksbi"; 
+        const SHOP_NAME = "MANIKANDA PRABU";
+        
+        // Menu Items Data (Images removed completely. We are using reliable, vibrant gradient icons).
+        const menuItems = [
+            { id: 1, name: "Masala Chai", price: 20, icon: "fa-mug-hot", color: "from-orange-400 to-orange-500" },
+            { id: 2, name: "Lemon Tea", price: 15, icon: "fa-lemon", color: "from-yellow-300 to-lime-400 text-slate-800" },
+            { id: 3, name: "Filter Coffee", price: 25, icon: "fa-mug-saucer", color: "from-amber-600 to-amber-700" },
+            { id: 4, name: "Black Tea", price: 15, icon: "fa-mug-hot", color: "from-slate-700 to-slate-900" },
+            { id: 5, name: "Samosa", price: 15, icon: "fa-caret-up", color: "from-yellow-400 to-orange-400" },
+            { id: 6, name: "Osmania Biscuit", price: 5, icon: "fa-cookie", color: "from-amber-300 to-amber-500" },
+            { id: 7, name: "Bun Maska", price: 30, icon: "fa-bread-slice", color: "from-yellow-200 to-yellow-400 text-slate-800" },
+            { id: 8, name: "Vada Pav", price: 20, icon: "fa-hamburger", color: "from-orange-500 to-red-500" },
+            { id: 9, name: "Cold Coffee", price: 40, icon: "fa-glass-water", color: "from-blue-400 to-cyan-500" },
+            { id: 10, name: "Ginger Tea", price: 15, icon: "fa-leaf", color: "from-green-400 to-emerald-500" },
+            { id: 11, name: "Puff", price: 25, icon: "fa-stroopwafel", color: "from-orange-300 to-amber-500" },
+            { id: 12, name: "Water Bottle", price: 20, icon: "fa-bottle-water", color: "from-cyan-300 to-blue-400" }
+        ];
+
+        /* --- STATE --- */
+        let cart = [];
+
+        /* --- INITIALIZATION --- */
+        document.addEventListener('DOMContentLoaded', () => {
+            renderMenu();
+            document.getElementById('upi-id').innerText = UPI_ID;
+            
+            if(sessionStorage.getItem('pos_authenticated') === 'true') {
+                showPosScreen();
+            }
+        });
+
+        /* --- AUTHENTICATION --- */
+        function handleLogin(e) {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            
+            if (password === 'admin123') { 
+                sessionStorage.setItem('pos_authenticated', 'true');
+                showPosScreen();
+                document.getElementById('password').value = '';
+                showToast('Welcome back!', 'success');
+            } else {
+                showToast('Incorrect password.', 'error');
+                const loginBox = document.querySelector('#login-screen .glass');
+                loginBox.classList.add('animate-[shake_0.5s_ease-in-out]');
+                setTimeout(() => loginBox.classList.remove('animate-[shake_0.5s_ease-in-out]'), 500);
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('pos_authenticated');
+            document.getElementById('pos-screen').classList.add('opacity-0');
+            setTimeout(() => {
+                document.getElementById('pos-screen').classList.add('hidden');
+                const loginScreen = document.getElementById('login-screen');
+                loginScreen.classList.remove('hidden');
+                setTimeout(() => loginScreen.classList.remove('opacity-0'), 50);
+            }, 500);
+            showToast('Locked successfully', 'info');
+        }
+
+        function showPosScreen() {
+            const loginScreen = document.getElementById('login-screen');
+            loginScreen.classList.add('opacity-0');
+            setTimeout(() => {
+                loginScreen.classList.add('hidden');
+                const posScreen = document.getElementById('pos-screen');
+                posScreen.classList.remove('hidden');
+                setTimeout(() => posScreen.classList.remove('opacity-0'), 50);
+            }, 300);
+        }
+
+        /* --- UI RENDER LOGIC --- */
+        function renderMenu() {
+            const grid = document.getElementById('menu-grid');
+            grid.innerHTML = '';
+
+            menuItems.forEach(item => {
+                const btn = document.createElement('button');
+                btn.className = `bg-white p-3 sm:p-4 rounded-3xl shadow-sm hover:shadow-xl border border-slate-100 flex flex-col items-center justify-start gap-3 transition-all transform hover:-translate-y-1 active:scale-95 group h-full`;
+                btn.onclick = () => addToCart(item);
+                
+                const iconTextColor = item.color.includes('text-slate-800') ? 'text-slate-800' : 'text-white';
+
+                // We are using pure icon-based rendering here. No external images to break.
+                btn.innerHTML = `
+                    <div class="w-full aspect-square mb-1 rounded-2xl overflow-hidden bg-slate-50 flex items-center justify-center relative shadow-inner">
+                        <div class="absolute inset-0 bg-gradient-to-br ${item.color} flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                            <i class="fa-solid ${item.icon} text-4xl sm:text-5xl ${iconTextColor}"></i>
+                        </div>
+                    </div>
+                    <div class="text-center w-full px-1">
+                        <h3 class="font-bold text-slate-800 leading-tight text-sm sm:text-base line-clamp-1">${item.name}</h3>
+                        <p class="text-rose-600 font-black mt-1 text-sm sm:text-base">₹${item.price}</p>
+                    </div>
+                `;
+                grid.appendChild(btn);
+            });
+        }
+
+        function renderCart() {
+            const cartContainer = document.getElementById('cart-items');
+            const totalDisplay = document.getElementById('cart-total');
+            
+            if (cart.length === 0) {
+                cartContainer.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 opacity-70">
+                        <i class="fa-solid fa-basket-shopping text-5xl sm:text-6xl mb-3 sm:mb-4 text-slate-200"></i>
+                        <p class="font-medium">Cart is empty</p>
+                        <p class="text-xs sm:text-sm text-slate-300 mt-1">Select items from the menu</p>
+                    </div>
+                `;
+                totalDisplay.innerText = '₹0';
+                return;
+            }
+
+            cartContainer.innerHTML = '';
+            let total = 0;
+
+            cart.forEach(item => {
+                const itemTotal = item.price * item.quantity;
+                total += itemTotal;
+
+                const cartItem = document.createElement('div');
+                cartItem.className = 'flex justify-between items-center bg-slate-50 p-3 rounded-xl mb-2 border border-slate-100 shadow-sm';
+                cartItem.innerHTML = `
+                    <div class="flex-1 min-w-0 pr-2">
+                        <h4 class="font-bold text-slate-700 truncate">${item.name}</h4>
+                        <p class="text-sm text-slate-500">₹${item.price}</p>
+                    </div>
+                    <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+                        <div class="flex items-center bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                            <button onclick="updateQuantity(${item.id}, -1)" class="w-7 sm:w-8 h-7 sm:h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"><i class="fa-solid fa-minus text-xs"></i></button>
+                            <span class="w-6 sm:w-8 text-center font-bold text-slate-700">${item.quantity}</span>
+                            <button onclick="updateQuantity(${item.id}, 1)" class="w-7 sm:w-8 h-7 sm:h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"><i class="fa-solid fa-plus text-xs"></i></button>
+                        </div>
+                        <div class="w-12 sm:w-14 text-right font-black text-slate-800">₹${itemTotal}</div>
+                    </div>
+                `;
+                cartContainer.appendChild(cartItem);
+            });
+
+            totalDisplay.innerText = `₹${total}`;
+        }
+
+        /* --- CART LOGIC --- */
+        function addToCart(product) {
+            const existingItem = cart.find(item => item.id === product.id);
+            if (existingItem) {
+                existingItem.quantity += 1;
+            } else {
+                cart.push({ ...product, quantity: 1 });
+            }
+            renderCart();
+        }
+
+        function updateQuantity(id, change) {
+            const itemIndex = cart.findIndex(item => item.id === id);
+            if (itemIndex > -1) {
+                cart[itemIndex].quantity += change;
+                if (cart[itemIndex].quantity <= 0) {
+                    cart.splice(itemIndex, 1);
+                }
+                renderCart();
+            }
+        }
+
+        function clearCart() {
+            if(cart.length > 0) {
+                cart = [];
+                renderCart();
+                showToast('Cart cleared', 'info');
+            }
+        }
+
+        function getCartTotal() {
+            return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        }
+
+        /* --- CHECKOUT LOGIC --- */
+        function openCheckoutModal() {
+            if (cart.length === 0) {
+                showToast('Add items to cart first!', 'error');
+                return;
+            }
+
+            // Reset modal to payment view
+            document.getElementById('payment-view').classList.remove('hidden');
+            document.getElementById('payment-view').classList.add('flex');
+            
+            document.getElementById('success-view').classList.add('hidden');
+            document.getElementById('success-view').classList.remove('flex');
+            
+            document.getElementById('modal-title').innerText = "Complete Payment";
+            document.getElementById('modal-subtitle').innerText = "Scan QR to pay securely";
+
+            const total = getCartTotal();
+            document.getElementById('modal-total').innerText = `₹${total}`;
+            
+            // Generate QR Code dynamically using upi://pay 
+            const upiUrl = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${total}&cu=INR`;
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUrl)}&color=0f172a&bgcolor=ffffff`;
+            document.getElementById('qr-image').src = qrImageUrl;
+
+            const modal = document.getElementById('checkout-modal');
+            const modalContent = document.getElementById('checkout-modal-content');
+            
+            modal.classList.remove('hidden');
+            void modal.offsetWidth; // force reflow
+            modal.classList.remove('opacity-0');
+            modalContent.classList.remove('scale-95');
+        }
+
+        function closeCheckoutModal() {
+            const modal = document.getElementById('checkout-modal');
+            const modalContent = document.getElementById('checkout-modal-content');
+            
+            modal.classList.add('opacity-0');
+            modalContent.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300); 
+        }
+
+        function copyUpi() {
+            const textToCopy = document.getElementById('upi-id').innerText;
+            const tempTextArea = document.createElement("textarea");
+            tempTextArea.value = textToCopy;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempTextArea);
+            showToast('UPI ID Copied!', 'success');
+        }
+
+        function completeSale() {
+            const total = getCartTotal();
+            const now = new Date();
+            
+            const saleRecord = {
+                id: 'SALE_' + now.getTime(),
+                date: now.toLocaleDateString(),
+                time: now.toLocaleTimeString(),
+                items: cart.map(item => `${item.name} (${item.quantity})`).join(' | '),
+                total: total
+            };
+
+            // Save to Local Storage
+            let savedData = JSON.parse(localStorage.getItem('chai_pos_sales')) || [];
+            savedData.push(saleRecord);
+            localStorage.setItem('chai_pos_sales', JSON.stringify(savedData));
+
+            // Clean up cart
+            cart = [];
+            renderCart();
+            
+            // Show Success View inside modal with a clear Back button
+            document.getElementById('payment-view').classList.add('hidden');
+            document.getElementById('payment-view').classList.remove('flex');
+            
+            document.getElementById('success-view').classList.remove('hidden');
+            document.getElementById('success-view').classList.add('flex');
+            
+            document.getElementById('modal-title').innerText = "Order Complete";
+            document.getElementById('modal-subtitle').innerText = "Thank you!";
+
+            showToast('Payment successful! Sale recorded.', 'success');
+        }
+
+        /* --- EXPORT TO EXCEL (CSV) --- */
+        function exportToExcel() {
+            const savedData = JSON.parse(localStorage.getItem('chai_pos_sales')) || [];
+            
+            if (savedData.length === 0) {
+                showToast('No sales data to export yet.', 'error');
+                return;
+            }
+
+            let csvContent = "Order ID,Date,Time,Items Purchased,Total Amount (INR)\n";
+            
+            savedData.forEach(row => {
+                const safeItems = `"${row.items.replace(/"/g, '""')}"`;
+                csvContent += `${row.id},${row.date},${row.time},${safeItems},${row.total}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            const dateStr = new Date().toISOString().split('T')[0];
+            link.setAttribute("download", `Sales_Report_${dateStr}.csv`);
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('Sales data exported successfully!', 'success');
+        }
+
+        /* --- CUSTOM TOAST NOTIFICATIONS --- */
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = 'bg-slate-800 text-white';
+            let icon = '<i class="fa-solid fa-circle-info text-blue-400"></i>';
+            
+            if(type === 'success') {
+                bgClass = 'bg-emerald-600 text-white';
+                icon = '<i class="fa-solid fa-circle-check"></i>';
+            } else if(type === 'error') {
+                bgClass = 'bg-red-500 text-white';
+                icon = '<i class="fa-solid fa-circle-exclamation"></i>';
+            }
+
+            toast.className = `${bgClass} px-5 py-3 rounded-lg shadow-lg flex items-center gap-3 font-medium transform transition-all translate-x-full opacity-0 duration-300 z-[200]`;
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => {
+                    if (container.contains(toast)) {
+                        container.removeChild(toast);
+                    }
+                }, 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
